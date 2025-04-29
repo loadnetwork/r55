@@ -17,8 +17,8 @@ Cargo.lock
 **/rvemu.*
 
 # Ignore auto-generated files
-r55-output-bytecode/
-*/generated/
+# r55-output-bytecode/
+# */generated/
 
 # Ignore .DS_Store
 .DS_Store
