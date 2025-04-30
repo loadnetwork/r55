@@ -28,6 +28,7 @@ fn erc20_setup(owner: Address) -> ERC20Setup {
     // Deploy contract
     let constructor = owner.abi_encode();
     let bytecode = get_bytecode("erc20");
+    // println!("RISCV-ERC20-BYTECODE: {}", bytecode.to_string());
     let token = deploy_contract(&mut db, bytecode, Some(constructor)).unwrap();
 
     ERC20Setup { db, token, owner }

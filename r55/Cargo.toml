@@ -21,3 +21,6 @@ thiserror.workspace = true
 
 tracing.workspace = true
 tracing-subscriber.workspace = true
+hex = "0.4.3"
+ethers = { version = "2.0.14", features = ["rustls"] }
+rand = "0.8.5"
