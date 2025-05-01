@@ -17,7 +17,7 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 use tracing::{debug, info, trace, warn};
 
 use super::eval_utils::{get_tx_kind, get_tx_object, recover_signer, is_risc_v};
-use super::error::{Error, Result, TxResult};
+use super::error::{Error, Result, TxResult, EvalTxResult};
 use super::gas;
 use super::syscall_gas;
 
@@ -27,7 +27,7 @@ const R5_REST_OF_RAM_INIT: u64 = 0x80300000; // Defined at `r5-rust-rt.x`
 pub fn eval_tx(
     db: &mut InMemoryDB,
     calldata: &str,
-) -> Result<TxResult> {
+) -> Result<EvalTxResult> {
     let calldata = calldata.trim_start_matches("0x");
     
     // check if this is a RISCV contract by looking for the ELF header in the tx data
@@ -57,60 +57,110 @@ pub fn eval_tx(
                     // deploy the contract
                     let address = deploy_contract(db, bytecode, None)?;
                     debug!("\n[!] RISCV contract deployed at: {:?}", address);
-                    return Ok(TxResult {
+                    return Ok(EvalTxResult {
                         output: Bytes::new().to_vec(),
                         logs: vec![],          
                         gas_used: tx_object.gas.as_u64(),
                         status: true,
+                        deployed_contract: Some(address.to_string())
                     });
-                };
+                } else {
+                    return Err(Error::EvmError(revm::primitives::EVMError::Custom("eval_tx support only TxKind::Create for riscv operations".to_string())));
+                }
             },
-            TransactTo::Call(_) => {
-                // this arm is unncesarry for now, tx_run default to the logic below as it's the same
-                let input_data = tx_object.input.to_vec();
-                let address = tx_object.to.unwrap_or(H160::zero());
-                let address = Address::from_slice(address.as_bytes());
-                
-                // call the contract using run_tx
-                return run_tx(db, &address, input_data, &sender);
+            _ => {
+                // execute RISC-V transaction code for non-Create transactions (Call type)
+                // reusing the EVM execution code for this case
+                let mut evm = Evm::builder()
+                    .with_db(db)
+                    .modify_tx_env(|tx| {
+                        tx.caller = sender;
+                        tx.transact_to = tx_kind;
+                        tx.data = Bytes::from(raw_tx_bytes);
+                        tx.value = U256::from(tx_object.value.as_u128());
+                        tx.gas_price = U256::from(42); // keep it as is for now
+                        tx.gas_limit = 100_000_000; // same
+                    })
+                    .modify_cfg_env(|cfg| cfg.limit_contract_code_size = Some(usize::MAX))
+                    .append_handler_register(handle_register)
+                    .build();
+            
+                let result = evm.transact_commit()?;
+            
+                match result {
+                    ExecutionResult::Success {
+                        reason: _,
+                        gas_used,
+                        gas_refunded: _,
+                        logs,
+                        output: Output::Call(value),
+                        ..
+                    } => {
+                        debug!("Tx result: {:?}", value);
+                        Ok(EvalTxResult {
+                            output: value.into(),
+                            logs,
+                            gas_used,
+                            deployed_contract: None,
+                            status: true,
+                        })
+                    }
+                    result => Err(Error::UnexpectedExecResult(result)),
+                }
             }
         }
-    }
-    
-    let mut evm = Evm::builder()
-        .with_db(db)
-        .modify_tx_env(|tx| {
-            tx.caller = sender;
-            tx.transact_to = tx_kind;
-            tx.data = Bytes::from(raw_tx_bytes);
-            tx.value = U256::from(tx_object.value.as_u128());
-            tx.gas_price = U256::from(42); // keep it as is for now
-            tx.gas_limit = 100_000_000; // same
-        })
-        .modify_cfg_env(|cfg| cfg.limit_contract_code_size = Some(usize::MAX))
-        .append_handler_register(handle_register)
-        .build();
-
-    let result = evm.transact_commit()?;
-
-    match result {
-        ExecutionResult::Success {
-            reason: _,
-            gas_used,
-            gas_refunded: _,
-            logs,
-            output: Output::Call(value),
-            ..
-        } => {
-            debug!("Tx result: {:?}", value);
-            Ok(TxResult {
-                output: value.into(),
-                logs,
-                gas_used,
-                status: true,
+    } else {
+        // handle non-RISCV txs using standard EVM
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .modify_tx_env(|tx| {
+                tx.caller = sender;
+                tx.transact_to = tx_kind;
+                tx.data = Bytes::from(raw_tx_bytes);
+                tx.value = U256::from(tx_object.value.as_u128());
+                tx.gas_price = U256::from(42);
+                tx.gas_limit = 100_000_000;
             })
+            .modify_cfg_env(|cfg| cfg.limit_contract_code_size = Some(usize::MAX))
+            .append_handler_register(handle_register)
+            .build();
+    
+        let result = evm.transact_commit()?;
+    
+        match result {
+            ExecutionResult::Success {
+                reason: _,
+                gas_used,
+                gas_refunded: _,
+                logs,
+                output,
+                ..
+            } => {
+                match output {
+                    Output::Call(value) => {
+                        debug!("Tx result: {:?}", value);
+                        Ok(EvalTxResult {
+                            output: value.into(),
+                            logs,
+                            gas_used,
+                            deployed_contract: None,
+                            status: true,
+                        })
+                    },
+                    Output::Create(value, address) => {
+                        debug!("Contract created at: {:?}", address);
+                        Ok(EvalTxResult {
+                            output: value.into(),
+                            logs,
+                            gas_used,
+                            deployed_contract: Some(address.unwrap().to_string()),
+                            status: true,
+                        })
+                    }
+                }
+            }
+            result => Err(Error::UnexpectedExecResult(result)),
         }
-        result => Err(Error::UnexpectedExecResult(result)),
     }
 }
 
