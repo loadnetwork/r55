@@ -24,3 +24,21 @@ pub fn get_tx_kind(tx: Transaction) -> TxKind {
         TxKind::Call(target)
     }
 }
+
+pub fn is_risc_v(calldata: &str) -> (bool, usize) {
+    if let Ok(tx_bytes) = hex::decode(calldata) {
+        // find the ELF header in the tx data
+        let mut elf_start = 0;
+        for i in 0..tx_bytes.len().saturating_sub(4) {
+            if tx_bytes[i] == 0xff && i + 1 < tx_bytes.len() && 
+               tx_bytes[i+1] == 0x7f && tx_bytes[i+2] == 0x45 && 
+               tx_bytes[i+3] == 0x4c && tx_bytes[i+4] == 0x46 {
+                elf_start = i;
+                break;
+            }
+        }
+        (elf_start > 0, elf_start)
+    } else {
+        (false, 0)
+    }
+}
