@@ -45,7 +45,7 @@ fn test_eval_erc20() {
     // deploy the RISCV ERC20 bytecode
     match eval_tx(&mut db, calldata) {
         Ok(res) => {
-            println!("deploy tx successful: {:?}", res);
+            println!("deploy tx successful: {:?} -- address: {:?}", res, res.deployed_contract);
             
         },
         Err(e) => {
