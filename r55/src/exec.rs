@@ -1,4 +1,5 @@
 use alloy_core::primitives::{Keccak256, U32};
+use ethers::types::H160;
 use core::cell::RefCell;
 use eth_riscv_interpreter::setup_from_elf;
 use eth_riscv_syscalls::Syscall;
@@ -15,11 +16,103 @@ use rvemu::{emulator::Emulator, exception::Exception};
 use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 use tracing::{debug, info, trace, warn};
 
+use super::eval_utils::{get_tx_kind, get_tx_object, recover_signer, is_risc_v};
 use super::error::{Error, Result, TxResult};
 use super::gas;
 use super::syscall_gas;
 
 const R5_REST_OF_RAM_INIT: u64 = 0x80300000; // Defined at `r5-rust-rt.x`
+
+/// takes hex encoded tx.input (calldata)
+pub fn eval_tx(
+    db: &mut InMemoryDB,
+    calldata: &str,
+) -> Result<TxResult> {
+    let calldata = calldata.trim_start_matches("0x");
+    
+    // check if this is a RISCV contract by looking for the ELF header in the tx data
+    let is_risc_v = is_risc_v(calldata);
+    
+    let sender = recover_signer(calldata);
+    debug!("sender = {:?}", sender);
+    let tx_object = get_tx_object(calldata);
+    let tx_kind = get_tx_kind(tx_object.clone());
+    debug!("TX KIND: {:?}", tx_kind);
+    let raw_tx_bytes = hex::decode(calldata).unwrap();
+    debug!("IS RISCV: {}", is_risc_v.0);
+    
+    if is_risc_v.0 {
+        debug!("detected RISC-V contract, using special handling");
+        
+        match tx_kind {
+            TransactTo::Create => {
+                // extract the RISCV bytecode
+                let elf_start = is_risc_v.1;
+                
+                if elf_start > 0 {
+                    // skip 0xFF and pass the ELF binary directly
+                    let elf_binary: &[u8] = &raw_tx_bytes[elf_start+1..];
+                    let bytecode = Bytes::from(elf_binary.to_vec());
+                    
+                    // deploy the contract
+                    let address = deploy_contract(db, bytecode, None)?;
+                    debug!("\n[!] RISCV contract deployed at: {:?}", address);
+                    return Ok(TxResult {
+                        output: Bytes::new().to_vec(),
+                        logs: vec![],          
+                        gas_used: tx_object.gas.as_u64(),
+                        status: true,
+                    });
+                };
+            },
+            TransactTo::Call(_) => {
+                // this arm is unncesarry for now, tx_run default to the logic below as it's the same
+                let input_data = tx_object.input.to_vec();
+                let address = tx_object.to.unwrap_or(H160::zero());
+                let address = Address::from_slice(address.as_bytes());
+                
+                // call the contract using run_tx
+                return run_tx(db, &address, input_data, &sender);
+            }
+        }
+    }
+    
+    let mut evm = Evm::builder()
+        .with_db(db)
+        .modify_tx_env(|tx| {
+            tx.caller = sender;
+            tx.transact_to = tx_kind;
+            tx.data = Bytes::from(raw_tx_bytes);
+            tx.value = U256::from(tx_object.value.as_u128());
+            tx.gas_price = U256::from(42); // keep it as is for now
+            tx.gas_limit = 100_000_000; // same
+        })
+        .modify_cfg_env(|cfg| cfg.limit_contract_code_size = Some(usize::MAX))
+        .append_handler_register(handle_register)
+        .build();
+
+    let result = evm.transact_commit()?;
+
+    match result {
+        ExecutionResult::Success {
+            reason: _,
+            gas_used,
+            gas_refunded: _,
+            logs,
+            output: Output::Call(value),
+            ..
+        } => {
+            debug!("Tx result: {:?}", value);
+            Ok(TxResult {
+                output: value.into(),
+                logs,
+                gas_used,
+                status: true,
+            })
+        }
+        result => Err(Error::UnexpectedExecResult(result)),
+    }
+}
 
 pub fn deploy_contract(
     db: &mut InMemoryDB,

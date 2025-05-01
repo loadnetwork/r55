@@ -28,6 +28,7 @@ fn erc20_setup(owner: Address) -> ERC20Setup {
     // Deploy contract
     let constructor = owner.abi_encode();
     let bytecode = get_bytecode("erc20");
+    // println!("RISCV-ERC20-BYTECODE: {}", bytecode.to_string());
     let token = deploy_contract(&mut db, bytecode, Some(constructor)).unwrap();
 
     ERC20Setup { db, token, owner }
@@ -65,7 +66,6 @@ fn test_erc20_mint() {
     let mint_amount = U256::from(100e18);
     let selector_mint = get_selector_from_sig("mint(address,uint256)");
     let calldata_mint = get_calldata(selector_mint, (recipient, mint_amount).abi_encode());
-
     let mint_result = run_tx(&mut db, &token, calldata_mint, &owner).expect("Error executing tx");
     assert!(mint_result.status, "Mint transaction failed");
 
