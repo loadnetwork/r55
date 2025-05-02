@@ -16,8 +16,8 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 use tracing::{debug, info, trace, warn};
 
 use crate::test_utils::ALICE;
-use super::eval_utils::{LoadEvmConfig, get_tx_kind, get_tx_object, recover_signer, is_risc_v};
-use super::error::{Error, Result, TxResult, EvalTxResult};
+use super::eval_utils::{LoadEvmConfig, EvalTxResult, get_tx_kind, get_tx_object, recover_signer, is_risc_v};
+use super::error::{Error, Result, TxResult};
 use super::gas;
 use super::syscall_gas;
 
