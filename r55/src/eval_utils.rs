@@ -1,9 +1,22 @@
+use alloy_primitives::U256;
 use ethers::types::Transaction;
 use ethers::utils::rlp;
 use hex::FromHex;
 use revm::primitives::alloy_primitives::Address;
 use revm::primitives::TxKind;
 
+#[derive(Debug)]
+pub struct LoadEvmConfig {
+    pub gas_limit: u64,
+    pub gas_price: U256
+}
+
+impl Default for LoadEvmConfig  {
+    fn default() -> Self {
+        
+        Self { gas_limit: 1_000_000_000, gas_price: U256::from(42) }
+    }
+}
 pub fn recover_signer(raw_tx_hex: &str) -> Address {
     let raw_tx_bytes: Vec<u8> = Vec::from_hex(raw_tx_hex).unwrap();
     let tx: Transaction = rlp::decode(&raw_tx_bytes).unwrap();

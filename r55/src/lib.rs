@@ -6,7 +6,7 @@ mod generated;
 pub use generated::get_bytecode;
 
 pub mod test_utils;
-mod eval_utils;
+pub mod eval_utils;
 
 #[cfg(test)]
 mod tests {
