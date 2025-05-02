@@ -43,7 +43,7 @@ fn test_eval_erc20() {
     }
 
     // deploy the RISCV ERC20 bytecode
-    match eval_tx(&mut db, calldata) {
+    match eval_tx(&mut db, calldata, None) {
         Ok(res) => {
             println!("deploy tx successful: {:?} -- address: {:?}", res, res.deployed_contract);
             
@@ -58,7 +58,7 @@ fn test_eval_erc20() {
     let mint_calldata = file_content.trim();
     let mint_calldata = mint_calldata.trim_start_matches("0x");
     println!("mint_calldata: {:?}", mint_calldata);
-    match eval_tx(&mut db, mint_calldata) {
+    match eval_tx(&mut db, mint_calldata, None) {
         Ok(res) => {
             println!("mint tx successful: {:?}", res);
         },
