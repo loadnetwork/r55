@@ -32,7 +32,7 @@ mod tests {
         // Deploy contract
         let constructor = owner.abi_encode();
         let bytecode = get_bytecode("erc20");
-        let erc20 = deploy_contract(&mut db, bytecode, Some(constructor)).unwrap();
+        let erc20 = deploy_contract(&mut db, bytecode, Some(constructor), None).unwrap();
 
         (db, erc20)
     }
@@ -40,7 +40,7 @@ mod tests {
     fn setup_erc20x(db: &mut InMemoryDB) -> Address {
         // Deploy contract
         let bytecode = get_bytecode("erc20x");
-        deploy_contract(db, bytecode, None).unwrap()
+        deploy_contract(db, bytecode, None, None).unwrap()
     }
 
     #[test]

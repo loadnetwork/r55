@@ -28,7 +28,7 @@ fn erc721_setup(owner: Address) -> ERC721Setup {
     // Deploy contract
     let constructor = owner.abi_encode();
     let bytecode = get_bytecode("erc721");
-    let token = deploy_contract(&mut db, bytecode, Some(constructor)).unwrap();
+    let token = deploy_contract(&mut db, bytecode, Some(constructor), None).unwrap();
 
     ERC721Setup { db, token, owner }
 }

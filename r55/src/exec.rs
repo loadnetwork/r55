@@ -55,7 +55,7 @@ pub fn eval_tx(
                     let bytecode = Bytes::from(elf_binary.to_vec());
                     
                     // deploy the contract
-                    let address = deploy_contract(db, bytecode, None)?;
+                    let address = deploy_contract(db, bytecode, None, Some(sender))?;
                     debug!("\n[!] RISCV contract deployed at: {:?}", address);
                     return Ok(EvalTxResult {
                         output: Bytes::new().to_vec(),
@@ -168,6 +168,7 @@ pub fn deploy_contract(
     db: &mut InMemoryDB,
     bytecode: Bytes,
     encoded_args: Option<Vec<u8>>,
+    deployer: Option<Address>
 ) -> Result<Address> {
     let init_code = if Some(&0xff) == bytecode.first() {
         // Craft R55 initcode: [0xFF][codesize][bytecode][constructor_args]
@@ -193,7 +194,7 @@ pub fn deploy_contract(
     let mut evm = Evm::builder()
         .with_db(db)
         .modify_tx_env(|tx| {
-            tx.caller = address!("000000000000000000000000000000000000000A");
+            tx.caller = deployer.unwrap_or(Address::ZERO);
             tx.transact_to = TransactTo::Create;
             tx.data = init_code;
             tx.value = U256::from(0);
