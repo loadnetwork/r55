@@ -27,8 +27,9 @@ const R5_REST_OF_RAM_INIT: u64 = 0x80300000; // Defined at `r5-rust-rt.x`
 pub fn eval_tx(
     db: &mut InMemoryDB,
     calldata: &str,
+    evm_config: Option<LoadEvmConfig>
 ) -> Result<EvalTxResult> {
-    let evm_config = LoadEvmConfig::default();
+    let evm_config = evm_config.unwrap_or_default();
     let calldata = calldata.trim_start_matches("0x");
     
     // check if this is a RISCV contract by looking for the ELF header in the tx data

@@ -13,8 +13,19 @@ pub struct LoadEvmConfig {
 
 impl Default for LoadEvmConfig  {
     fn default() -> Self {
-        
         Self { gas_limit: 1_000_000_000, gas_price: U256::from(42) }
+    }
+}
+
+impl LoadEvmConfig {
+    pub fn custom(gas_limit: Option<u64>, gas_price: Option<u64>) -> Self {
+        let gas_limit = gas_limit.unwrap_or(1_000_000_000);
+        let gas_price = gas_price.unwrap_or(42);
+        
+        Self {
+            gas_limit,
+            gas_price: U256::from(gas_price)
+        }
     }
 }
 pub fn recover_signer(raw_tx_hex: &str) -> Address {
