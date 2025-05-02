@@ -19,15 +19,6 @@ pub struct TxResult {
     pub status: bool,
 }
 
-#[derive(Debug)]
-pub struct EvalTxResult {
-    pub output: Vec<u8>,
-    pub logs: Vec<Log>,
-    pub gas_used: u64,
-    pub status: bool,
-    pub deployed_contract: Option<String>
-}
-
 /// Error encountered on RISC-V execution
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, thiserror::Error)]

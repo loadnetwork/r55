@@ -2,8 +2,17 @@ use alloy_primitives::U256;
 use ethers::types::Transaction;
 use ethers::utils::rlp;
 use hex::FromHex;
-use revm::primitives::alloy_primitives::Address;
+use revm::primitives::alloy_primitives::{Address, Log};
 use revm::primitives::TxKind;
+
+#[derive(Debug)]
+pub struct EvalTxResult {
+    pub output: Vec<u8>,
+    pub logs: Vec<Log>,
+    pub gas_used: u64,
+    pub status: bool,
+    pub deployed_contract: Option<String>
+}
 
 #[derive(Debug)]
 pub struct LoadEvmConfig {
