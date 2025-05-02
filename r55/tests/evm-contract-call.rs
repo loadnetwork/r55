@@ -42,8 +42,8 @@ fn evm_call() {
 
     let bytecode_evm = load_bytecode_from_file(EVM_PATH);
     let bytecode_r55 = get_bytecode("evm_caller");
-    let evm = deploy_contract(&mut db, bytecode_evm, None).unwrap();
-    let r55 = deploy_contract(&mut db, bytecode_r55, None).unwrap();
+    let evm = deploy_contract(&mut db, bytecode_evm, None, None).unwrap();
+    let r55 = deploy_contract(&mut db, bytecode_r55, None, None).unwrap();
 
     let selector_get = get_selector_from_sig("get()");
     let selector_set = get_selector_from_sig("set(uint256)");

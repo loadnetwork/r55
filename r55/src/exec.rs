@@ -1,5 +1,4 @@
 use alloy_core::primitives::{Keccak256, U32};
-use ethers::types::H160;
 use core::cell::RefCell;
 use eth_riscv_interpreter::setup_from_elf;
 use eth_riscv_syscalls::Syscall;
@@ -9,14 +8,15 @@ use revm::{
         CallInputs, CallScheme, CallValue, CreateInputs, CreateScheme, Host, InstructionResult,
         Interpreter, InterpreterAction, InterpreterResult, SharedMemory,
     },
-    primitives::{address, Address, Bytes, ExecutionResult, Log, Output, TransactTo, B256, U256},
+    primitives::{Address, Bytes, ExecutionResult, Log, Output, TransactTo, B256, U256},
     Database, Evm, Frame, FrameOrResult, InMemoryDB,
 };
 use rvemu::{emulator::Emulator, exception::Exception};
 use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 use tracing::{debug, info, trace, warn};
 
-use super::eval_utils::{get_tx_kind, get_tx_object, recover_signer, is_risc_v};
+use crate::test_utils::ALICE;
+use super::eval_utils::{LoadEvmConfig, get_tx_kind, get_tx_object, recover_signer, is_risc_v};
 use super::error::{Error, Result, TxResult, EvalTxResult};
 use super::gas;
 use super::syscall_gas;
@@ -28,6 +28,7 @@ pub fn eval_tx(
     db: &mut InMemoryDB,
     calldata: &str,
 ) -> Result<EvalTxResult> {
+    let evm_config = LoadEvmConfig::default();
     let calldata = calldata.trim_start_matches("0x");
     
     // check if this is a RISCV contract by looking for the ELF header in the tx data
@@ -55,7 +56,7 @@ pub fn eval_tx(
                     let bytecode = Bytes::from(elf_binary.to_vec());
                     
                     // deploy the contract
-                    let address = deploy_contract(db, bytecode, None)?;
+                    let address = deploy_contract(db, bytecode, None, Some(sender))?;
                     debug!("\n[!] RISCV contract deployed at: {:?}", address);
                     return Ok(EvalTxResult {
                         output: Bytes::new().to_vec(),
@@ -78,8 +79,8 @@ pub fn eval_tx(
                         tx.transact_to = tx_kind;
                         tx.data = Bytes::from(raw_tx_bytes);
                         tx.value = U256::from(tx_object.value.as_u128());
-                        tx.gas_price = U256::from(42); // keep it as is for now
-                        tx.gas_limit = 100_000_000; // same
+                        tx.gas_price = evm_config.gas_price;
+                        tx.gas_limit = evm_config.gas_limit;
                     })
                     .modify_cfg_env(|cfg| cfg.limit_contract_code_size = Some(usize::MAX))
                     .append_handler_register(handle_register)
@@ -118,8 +119,8 @@ pub fn eval_tx(
                 tx.transact_to = tx_kind;
                 tx.data = Bytes::from(raw_tx_bytes);
                 tx.value = U256::from(tx_object.value.as_u128());
-                tx.gas_price = U256::from(42);
-                tx.gas_limit = 100_000_000;
+                tx.gas_price = evm_config.gas_price;
+                tx.gas_limit = evm_config.gas_limit;
             })
             .modify_cfg_env(|cfg| cfg.limit_contract_code_size = Some(usize::MAX))
             .append_handler_register(handle_register)
@@ -168,6 +169,7 @@ pub fn deploy_contract(
     db: &mut InMemoryDB,
     bytecode: Bytes,
     encoded_args: Option<Vec<u8>>,
+    deployer: Option<Address>
 ) -> Result<Address> {
     let init_code = if Some(&0xff) == bytecode.first() {
         // Craft R55 initcode: [0xFF][codesize][bytecode][constructor_args]
@@ -193,7 +195,7 @@ pub fn deploy_contract(
     let mut evm = Evm::builder()
         .with_db(db)
         .modify_tx_env(|tx| {
-            tx.caller = address!("000000000000000000000000000000000000000A");
+            tx.caller = deployer.unwrap_or(ALICE);
             tx.transact_to = TransactTo::Create;
             tx.data = init_code;
             tx.value = U256::from(0);
@@ -231,6 +233,7 @@ pub fn run_tx(
     calldata: Vec<u8>,
     caller: &Address,
 ) -> Result<TxResult> {
+    let evm_config = LoadEvmConfig::default();
     let mut evm = Evm::builder()
         .with_db(db)
         .modify_tx_env(|tx| {
@@ -238,8 +241,8 @@ pub fn run_tx(
             tx.transact_to = TransactTo::Call(*addr);
             tx.data = calldata.into();
             tx.value = U256::from(0);
-            tx.gas_price = U256::from(42);
-            tx.gas_limit = 100_000_000;
+            tx.gas_price = evm_config.gas_price;
+            tx.gas_limit = evm_config.gas_limit;
         })
         .modify_cfg_env(|cfg| cfg.limit_contract_code_size = Some(usize::MAX))
         .append_handler_register(handle_register)

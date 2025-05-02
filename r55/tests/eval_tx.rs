@@ -67,3 +67,4 @@ fn test_eval_erc20() {
         }
     }
 }
+

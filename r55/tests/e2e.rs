@@ -20,7 +20,7 @@ fn erc20() {
     let constructor = alice.abi_encode();
     // let bytecode = compile_with_prefix(compile_deploy, ERC20_PATH).unwrap();
     let bytecode = get_bytecode("erc20");
-    let erc20 = deploy_contract(&mut db, bytecode, Some(constructor)).unwrap();
+    let erc20 = deploy_contract(&mut db, bytecode, Some(constructor), None).unwrap();
 
     let total_supply = get_selector_from_sig("total_supply()");
     let selector_balance = get_selector_from_sig("balance_of(address)");
@@ -87,7 +87,7 @@ fn erc20x() {
     let alice: Address = address!("000000000000000000000000000000000000000A");
     add_balance_to_db(&mut db, alice, 1e18 as u64);
 
-    let erc20x = deploy_contract(&mut db, get_bytecode("erc20x"), None).unwrap();
+    let erc20x = deploy_contract(&mut db, get_bytecode("erc20x"), None, None).unwrap();
 
     let selector_x_deploy = get_selector_from_sig("x_deploy(address)");
     let total_supply = get_selector_from_sig("total_supply()");
