@@ -9,12 +9,14 @@ use revm::{
         CallInputs, CallScheme, CallValue, CreateInputs, CreateScheme, Host, InstructionResult,
         Interpreter, InterpreterAction, InterpreterResult, SharedMemory,
     },
-    primitives::{address, Address, Bytes, ExecutionResult, Log, Output, TransactTo, B256, U256},
+    primitives::{Address, Bytes, ExecutionResult, Log, Output, TransactTo, B256, U256},
     Database, Evm, Frame, FrameOrResult, InMemoryDB,
 };
 use rvemu::{emulator::Emulator, exception::Exception};
 use std::{collections::BTreeMap, rc::Rc, sync::Arc};
 use tracing::{debug, info, trace, warn};
+
+use crate::test_utils::ALICE;
 
 use super::eval_utils::{get_tx_kind, get_tx_object, recover_signer, is_risc_v};
 use super::error::{Error, Result, TxResult, EvalTxResult};
@@ -194,7 +196,7 @@ pub fn deploy_contract(
     let mut evm = Evm::builder()
         .with_db(db)
         .modify_tx_env(|tx| {
-            tx.caller = deployer.unwrap_or(Address::ZERO);
+            tx.caller = deployer.unwrap_or(ALICE);
             tx.transact_to = TransactTo::Create;
             tx.data = init_code;
             tx.value = U256::from(0);
